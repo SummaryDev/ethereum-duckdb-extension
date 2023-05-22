@@ -4,15 +4,45 @@
 
 # Before we load the extension, this will fail
 statement error
-SELECT abi('Sam');
+SELECT quack('Oleg');
 ----
-Catalog Error: Scalar Function with name abi does not exist!
+Catalog Error: Scalar Function with name quack does not exist!
 
 # Require statement will ensure this test is run with this extension loaded
 require abi
 
 # Confirm the extension works
 query I
-SELECT abi('Sam');
+SELECT quack('Oleg');
 ----
-Abi Sam 🐥
+Quack Oleg 🐥
+
+query I
+SELECT quack_binary('Oleg', 'Abu');
+----
+Quack Oleg Abu 🐥
+
+query I
+SELECT to_uint8(2, '0xff');
+----
+255
+
+query I
+SELECT to_uint8(2, '0xfff');
+----
+255
+
+query I
+SELECT to_int8(2, '0xff');
+----
+-1
+
+query I
+SELECT to_uint16(2, '0xffff');
+----
+65535
+
+query I
+SELECT to_int16(2, '0xffff');
+----
+-1
