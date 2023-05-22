@@ -1,6 +1,6 @@
 #define DUCKDB_EXTENSION_MAIN
 
-#include "quack_extension.hpp"
+#include "abi_extension.hpp"
 #include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/string_util.hpp"
@@ -11,23 +11,23 @@
 
 namespace duckdb {
 
-    inline void QuackScalarFun(DataChunk &args, ExpressionState &state, Vector &result) {
+    inline void AbiScalarFun(DataChunk &args, ExpressionState &state, Vector &result) {
         auto &name_vector = args.data[0];
         UnaryExecutor::Execute<string_t, string_t>(
                 name_vector, result, args.size(),
                 [&](string_t name) {
-                    return StringVector::AddString(result, "Quack " + name.GetString() + " 🐥");
+                    return StringVector::AddString(result, "Abi " + name.GetString() + " 🐥");
                 });
     }
 
-    inline void QuackBinaryScalarFun(DataChunk &args, ExpressionState &state, Vector &result) {
+    inline void AbiBinaryScalarFun(DataChunk &args, ExpressionState &state, Vector &result) {
         auto &name_vector = args.data[0];
         auto &lastname_vector = args.data[1];
         BinaryExecutor::Execute<string_t, string_t, string_t>(
                 name_vector, lastname_vector, result, args.size(),
                 [&](string_t name, string_t lastname) {
                     return StringVector::AddString(result,
-                                                   "Quack " + name.GetString() + " " + lastname.GetString() + " 🐥");
+                                                   "Abi " + name.GetString() + " " + lastname.GetString() + " 🐥");
                 });
     }
 
@@ -161,97 +161,97 @@ namespace duckdb {
 
         auto &catalog = Catalog::GetSystemCatalog(*con.context);
 
-        CreateScalarFunctionInfo quack_fun_info(
-                ScalarFunction("quack", {LogicalType::VARCHAR}, LogicalType::VARCHAR, QuackScalarFun));
-        quack_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
-        catalog.CreateFunction(*con.context, &quack_fun_info);
+        CreateScalarFunctionInfo abi_fun_info(
+                ScalarFunction("abi", {LogicalType::VARCHAR}, LogicalType::VARCHAR, AbiScalarFun));
+        abi_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
+        catalog.CreateFunction(*con.context, &abi_fun_info);
 
-        CreateScalarFunctionInfo quack_binary_fun_info(
-                ScalarFunction("quack_binary", {LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR,
-                               QuackBinaryScalarFun));
-        quack_binary_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
-        catalog.CreateFunction(*con.context, &quack_binary_fun_info);
+        CreateScalarFunctionInfo abi_binary_fun_info(
+                ScalarFunction("abi_binary", {LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR,
+                               AbiBinaryScalarFun));
+        abi_binary_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
+        catalog.CreateFunction(*con.context, &abi_binary_fun_info);
 
-        CreateScalarFunctionInfo quack_to_uint8_fun_info(
+        CreateScalarFunctionInfo abi_to_uint8_fun_info(
                 ScalarFunction("to_uint8", {LogicalType::INTEGER, LogicalType::VARCHAR}, LogicalType::UTINYINT,
                                ToUint8));
-        quack_to_uint8_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
-        catalog.CreateFunction(*con.context, &quack_to_uint8_fun_info);
+        abi_to_uint8_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
+        catalog.CreateFunction(*con.context, &abi_to_uint8_fun_info);
 
-        CreateScalarFunctionInfo quack_to_uint16_fun_info(
+        CreateScalarFunctionInfo abi_to_uint16_fun_info(
                 ScalarFunction("to_uint16", {LogicalType::INTEGER, LogicalType::VARCHAR}, LogicalType::USMALLINT,
                                ToUint16));
-        quack_to_uint16_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
-        catalog.CreateFunction(*con.context, &quack_to_uint16_fun_info);
+        abi_to_uint16_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
+        catalog.CreateFunction(*con.context, &abi_to_uint16_fun_info);
 
-        CreateScalarFunctionInfo quack_to_uint32_fun_info(
+        CreateScalarFunctionInfo abi_to_uint32_fun_info(
                 ScalarFunction("to_uint32", {LogicalType::INTEGER, LogicalType::VARCHAR}, LogicalType::UINTEGER,
                                ToUint32));
-        quack_to_uint32_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
-        catalog.CreateFunction(*con.context, &quack_to_uint32_fun_info);
+        abi_to_uint32_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
+        catalog.CreateFunction(*con.context, &abi_to_uint32_fun_info);
 
-        CreateScalarFunctionInfo quack_to_uint64_fun_info(
+        CreateScalarFunctionInfo abi_to_uint64_fun_info(
                 ScalarFunction("to_uint64", {LogicalType::INTEGER, LogicalType::VARCHAR}, LogicalType::UBIGINT,
                                ToUint64));
-        quack_to_uint64_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
-        catalog.CreateFunction(*con.context, &quack_to_uint64_fun_info);
+        abi_to_uint64_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
+        catalog.CreateFunction(*con.context, &abi_to_uint64_fun_info);
 
-        CreateScalarFunctionInfo quack_to_uint128_fun_info(
+        CreateScalarFunctionInfo abi_to_uint128_fun_info(
                 ScalarFunction("to_uint128", {LogicalType::INTEGER, LogicalType::VARCHAR}, LogicalType::LIST(LogicalType::UBIGINT),
                                ToUint128));
-        quack_to_uint128_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
-        catalog.CreateFunction(*con.context, &quack_to_uint128_fun_info);
+        abi_to_uint128_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
+        catalog.CreateFunction(*con.context, &abi_to_uint128_fun_info);
 
-        CreateScalarFunctionInfo quack_to_uint256_fun_info(
+        CreateScalarFunctionInfo abi_to_uint256_fun_info(
                 ScalarFunction("to_uint256", {LogicalType::INTEGER, LogicalType::VARCHAR}, LogicalType::LIST(LogicalType::UBIGINT),
                                ToUint256));
-        quack_to_uint256_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
-        catalog.CreateFunction(*con.context, &quack_to_uint256_fun_info);
+        abi_to_uint256_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
+        catalog.CreateFunction(*con.context, &abi_to_uint256_fun_info);
 
-        CreateScalarFunctionInfo quack_to_int8_fun_info(
+        CreateScalarFunctionInfo abi_to_int8_fun_info(
                 ScalarFunction("to_int8", {LogicalType::INTEGER, LogicalType::VARCHAR}, LogicalType::TINYINT,
                                ToInt8));
-        quack_to_int8_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
-        catalog.CreateFunction(*con.context, &quack_to_int8_fun_info);
+        abi_to_int8_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
+        catalog.CreateFunction(*con.context, &abi_to_int8_fun_info);
 
-        CreateScalarFunctionInfo quack_to_int16_fun_info(
+        CreateScalarFunctionInfo abi_to_int16_fun_info(
                 ScalarFunction("to_int16", {LogicalType::INTEGER, LogicalType::VARCHAR}, LogicalType::SMALLINT,
                                ToInt16));
-        quack_to_int16_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
-        catalog.CreateFunction(*con.context, &quack_to_int16_fun_info);
+        abi_to_int16_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
+        catalog.CreateFunction(*con.context, &abi_to_int16_fun_info);
 
-        CreateScalarFunctionInfo quack_to_int32_fun_info(
+        CreateScalarFunctionInfo abi_to_int32_fun_info(
                 ScalarFunction("to_int32", {LogicalType::INTEGER, LogicalType::VARCHAR}, LogicalType::INTEGER,
                                ToInt32));
-        quack_to_int32_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
-        catalog.CreateFunction(*con.context, &quack_to_int32_fun_info);
+        abi_to_int32_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
+        catalog.CreateFunction(*con.context, &abi_to_int32_fun_info);
 
-        CreateScalarFunctionInfo quack_to_int64_fun_info(
+        CreateScalarFunctionInfo abi_to_int64_fun_info(
                 ScalarFunction("to_int64", {LogicalType::INTEGER, LogicalType::VARCHAR}, LogicalType::BIGINT,
                                ToInt64));
-        quack_to_int64_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
-        catalog.CreateFunction(*con.context, &quack_to_int64_fun_info);
+        abi_to_int64_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
+        catalog.CreateFunction(*con.context, &abi_to_int64_fun_info);
 
         con.Commit();
     }
 
-    void QuackExtension::Load(DuckDB &db) {
+    void AbiExtension::Load(DuckDB &db) {
         LoadInternal(*db.instance);
     }
 
-    std::string QuackExtension::Name() {
-        return "quack";
+    std::string AbiExtension::Name() {
+        return "abi";
     }
 
 } // namespace duckdb
 
 extern "C" {
 
-DUCKDB_EXTENSION_API void quack_init(duckdb::DatabaseInstance &db) {
+DUCKDB_EXTENSION_API void abi_init(duckdb::DatabaseInstance &db) {
     LoadInternal(db);
 }
 
-DUCKDB_EXTENSION_API const char *quack_version() {
+DUCKDB_EXTENSION_API const char *abi_version() {
     return duckdb::DuckDB::LibraryVersion();
 }
 }

@@ -1,0 +1,18 @@
+# name: test/sql/abi.test
+# description: test abi extension
+# group: [abi]
+
+# Before we load the extension, this will fail
+statement error
+SELECT abi('Sam');
+----
+Catalog Error: Scalar Function with name abi does not exist!
+
+# Require statement will ensure this test is run with this extension loaded
+require abi
+
+# Confirm the extension works
+query I
+SELECT abi('Sam');
+----
+Abi Sam 🐥
