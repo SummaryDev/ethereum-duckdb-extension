@@ -1,11 +1,6 @@
 # Ethereum ABI DuckDB extension
 
-This repository is based on https://github.com/duckdb/extension-template, check it out if you want to build and ship your own DuckDB extension.
-
----
-
 This extension, **abi**, allows you to parse EVM events and transaction payloads encoded with ABI.
-
 
 ## Building
 To build the extension:
@@ -25,15 +20,16 @@ The main binaries that will be built are:
 ## Running the extension
 To run the extension code, simply start the shell with `./build/release/duckdb`.
 
-Now we can use the features from the extension directly in DuckDB. The template contains a single scalar function `quack()` that takes a string arguments and returns a string:
+Now we can use the features from the extension directly in DuckDB.
 ```
-D select quack('Oleg') as result;
-┌───────────────┐
-│    result     │
-│    varchar    │
-├───────────────┤
-│ Quack Oleg 🐥 │
-└───────────────┘
+D select to_uint256(2, '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
+┌──────────────────────────────────────────────────────────────────────────────────────────┐
+│   to_uint256(2, '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')    │
+│                                         uint64[]                                         │
+├──────────────────────────────────────────────────────────────────────────────────────────┤
+│ [18446744073709551615, 18446744073709551615, 18446744073709551615, 18446744073709551615] │
+└──────────────────────────────────────────────────────────────────────────────────────────┘
+
 ```
 
 ## Running the tests
@@ -74,3 +70,7 @@ After running these steps, you can install and load your extension using the reg
 INSTALL abi
 LOAD abi
 ```
+
+---
+
+This repository is based on https://github.com/duckdb/extension-template, check it out if you want to build and ship your own DuckDB extension.
