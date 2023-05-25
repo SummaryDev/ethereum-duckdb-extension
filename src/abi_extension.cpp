@@ -31,6 +31,24 @@ namespace duckdb {
                 });
     }
 
+    inline std::string Substr(uint16_t pos, string_t data, uint8_t size) {
+        auto s = data.GetString();
+        auto p = pos + 64 - size;
+        auto r = s.substr(p, size);
+        return r;
+    }
+
+    inline void ToPart(DataChunk &args, ExpressionState &state, Vector &result) {
+        auto &pos_vector = args.data[0];
+        auto &data_vector = args.data[1];
+        auto &size_vector = args.data[2];
+        TernaryExecutor::Execute<uint16_t, string_t, uint8_t, string_t>(
+                pos_vector, data_vector, size_vector, result, args.size(),
+                [&](uint16_t pos, string_t data, uint8_t size) {
+                    return StringVector::AddString(result, Substr(pos, data, size));
+                });
+    }
+
     template<class U>
     inline void ToUint(DataChunk &args, Vector &result, uint8_t size) {
         BinaryExecutor::Execute<uint16_t, string_t, U>(
@@ -73,7 +91,7 @@ namespace duckdb {
             const uint8_t size = 16;
 
             auto data0 = data.substr(pos, size);
-            auto data1 = data.substr(pos+size, size);
+            auto data1 = data.substr(pos + size, size);
 
             auto val0 = std::stoull(data0, nullptr, 16);
             auto val1 = std::stoull(data1, nullptr, 16);
@@ -99,9 +117,9 @@ namespace duckdb {
             const uint8_t size = 16;
 
             auto data0 = data.substr(pos, size);
-            auto data1 = data.substr(pos+size, size);
-            auto data2 = data.substr(pos+size*2, size);
-            auto data3 = data.substr(pos+size*3, size);
+            auto data1 = data.substr(pos + size, size);
+            auto data2 = data.substr(pos + size * 2, size);
+            auto data3 = data.substr(pos + size * 3, size);
 
             auto val0 = std::stoull(data0, nullptr, 16);
             auto val1 = std::stoull(data1, nullptr, 16);
@@ -197,13 +215,15 @@ namespace duckdb {
         catalog.CreateFunction(*con.context, &abi_to_uint64_fun_info);
 
         CreateScalarFunctionInfo abi_to_uint128_fun_info(
-                ScalarFunction("to_uint128", {LogicalType::INTEGER, LogicalType::VARCHAR}, LogicalType::LIST(LogicalType::UBIGINT),
+                ScalarFunction("to_uint128", {LogicalType::INTEGER, LogicalType::VARCHAR},
+                               LogicalType::LIST(LogicalType::UBIGINT),
                                ToUint128));
         abi_to_uint128_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
         catalog.CreateFunction(*con.context, &abi_to_uint128_fun_info);
 
         CreateScalarFunctionInfo abi_to_uint256_fun_info(
-                ScalarFunction("to_uint256", {LogicalType::INTEGER, LogicalType::VARCHAR}, LogicalType::LIST(LogicalType::UBIGINT),
+                ScalarFunction("to_uint256", {LogicalType::INTEGER, LogicalType::VARCHAR},
+                               LogicalType::LIST(LogicalType::UBIGINT),
                                ToUint256));
         abi_to_uint256_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
         catalog.CreateFunction(*con.context, &abi_to_uint256_fun_info);
@@ -231,6 +251,12 @@ namespace duckdb {
                                ToInt64));
         abi_to_int64_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
         catalog.CreateFunction(*con.context, &abi_to_int64_fun_info);
+
+        CreateScalarFunctionInfo abi_to_part_fun_info(
+                ScalarFunction("to_part", {LogicalType::INTEGER, LogicalType::VARCHAR, LogicalType::INTEGER}, LogicalType::VARCHAR,
+                               ToPart));
+        abi_to_part_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
+        catalog.CreateFunction(*con.context, &abi_to_part_fun_info);
 
         con.Commit();
     }
