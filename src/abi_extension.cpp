@@ -6,39 +6,9 @@
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/function/scalar_function.hpp"
 
-
 #include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
 
 namespace duckdb {
-
-    inline void Quack(DataChunk &args, ExpressionState &state, Vector &result) {
-        auto &name_vector = args.data[0];
-        UnaryExecutor::Execute<string_t, string_t>(
-                name_vector, result, args.size(),
-                [&](string_t name) {
-                    return StringVector::AddString(result, "Quack " + name.GetString() + " 🐥");
-                });
-    }
-
-    inline void QuackBinary(DataChunk &args, ExpressionState &state, Vector &result) {
-        auto &name_vector = args.data[0];
-        auto &lastname_vector = args.data[1];
-        BinaryExecutor::Execute<string_t, string_t, string_t>(
-                name_vector, lastname_vector, result, args.size(),
-                [&](string_t name, string_t lastname) {
-                    return StringVector::AddString(result,
-                                                   "Quack " + name.GetString() + " " + lastname.GetString() + " 🐥");
-                });
-    }
-
-    inline void QuackBlob(DataChunk &args, ExpressionState &state, Vector &result) {
-        auto &name_vector = args.data[0];
-        UnaryExecutor::Execute<string_t, string_t>(
-                name_vector, result, args.size(),
-                [&](string_t name) {
-                    return StringVector::AddString(result, "Quack " + name.GetString() + " 🐥");
-                });
-    }
 
     inline std::string Substr(uint16_t pos, string_t data, uint8_t size) {
         auto s = data.GetString();
@@ -71,6 +41,40 @@ namespace duckdb {
                 });
     }
 
+    constexpr char hexmap[] = {'0', '1', '2', '3', '4', '5', '6', '7',
+                               '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+
+    inline std::string BlobToHex(uint16_t pos, unsigned char *data, uint16_t len) {
+        std::string s(len * 2, '0');
+        for (int i = pos; i < len; ++i) {
+            s[2 * i] = hexmap[(data[i] & 0xF0) >> 4];
+            s[2 * i + 1] = hexmap[data[i] & 0x0F];
+        }
+        return s;
+    }
+
+//    inline std::string BlobToHex(uint16_t pos, const char* data, uint16_t len) {
+//        std::stringstream ss;
+//        ss << std::hex;
+//
+//        for( int i(pos) ; i < pos + len; ++i )
+//            ss << std::setw(2) << std::setfill('0') << (int)data[i];
+//
+//        return ss.str();
+//    }
+
+    inline void BlobToAddress(DataChunk &args, ExpressionState &state, Vector &result) {
+        auto &pos_vector = args.data[0];
+        auto &data_vector = args.data[1];
+        BinaryExecutor::Execute<uint16_t, string_t, string_t>(
+                pos_vector, data_vector, result, args.size(),
+                [&](uint16_t pos, string_t data) {
+                    auto s = data.GetDataUnsafe();
+                    auto h = "0x" + BlobToHex(pos, (unsigned char *) s, 20);
+                    return StringVector::AddString(result, h);
+                });
+    }
+
     inline void ToString(DataChunk &args, ExpressionState &state, Vector &result) {
         auto &pos_vector = args.data[0];
         auto &data_vector = args.data[1];
@@ -95,14 +99,14 @@ namespace duckdb {
     }
 
     template<class U>
-    inline U BlobToUint(uint16_t pos, const char* s) {
+    inline U BlobToUint(uint16_t pos, const char *s) {
         U val;
         auto size = sizeof(U);
         std::vector<unsigned char> reversed(size);
         auto first = s + pos;
         auto last = first + size;
-        std::reverse_copy( first, last, std::begin(reversed));
-        val = *reinterpret_cast<U*>(reversed.data());
+        std::reverse_copy(first, last, std::begin(reversed));
+        val = *reinterpret_cast<U *>(reversed.data());
         return val;
     }
 
@@ -177,8 +181,8 @@ namespace duckdb {
 
             auto val0 = BlobToUint<uint64_t>(pos, s);
             auto val1 = BlobToUint<uint64_t>(pos + size, s);
-            auto val2 = BlobToUint<uint64_t>(pos + size*2, s);
-            auto val3 = BlobToUint<uint64_t>(pos + size*3, s);
+            auto val2 = BlobToUint<uint64_t>(pos + size * 2, s);
+            auto val3 = BlobToUint<uint64_t>(pos + size * 3, s);
 
             ListVector::PushBack(result, Value::UBIGINT(val0));
             ListVector::PushBack(result, Value::UBIGINT(val1));
@@ -303,17 +307,6 @@ namespace duckdb {
 
         auto &catalog = Catalog::GetSystemCatalog(*con.context);
 
-        CreateScalarFunctionInfo abi_quack_info(
-                ScalarFunction("quack", {LogicalType::VARCHAR}, LogicalType::VARCHAR, Quack));
-        abi_quack_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
-        catalog.CreateFunction(*con.context, &abi_quack_info);
-
-        CreateScalarFunctionInfo abi_quack_binary_info(
-                ScalarFunction("quack_binary", {LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR,
-                               QuackBinary));
-        abi_quack_binary_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
-        catalog.CreateFunction(*con.context, &abi_quack_binary_info);
-
         CreateScalarFunctionInfo abi_blob_to_uint8_fun_info(
                 ScalarFunction("blob_to_uint8", {LogicalType::INTEGER, LogicalType::BLOB}, LogicalType::UTINYINT,
                                BlobToUint8));
@@ -415,7 +408,8 @@ namespace duckdb {
         catalog.CreateFunction(*con.context, &abi_to_int64_fun_info);
 
         CreateScalarFunctionInfo abi_to_part_fun_info(
-                ScalarFunction("to_part", {LogicalType::INTEGER, LogicalType::VARCHAR, LogicalType::INTEGER}, LogicalType::VARCHAR,
+                ScalarFunction("to_part", {LogicalType::INTEGER, LogicalType::VARCHAR, LogicalType::INTEGER},
+                               LogicalType::VARCHAR,
                                ToPart));
         abi_to_part_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
         catalog.CreateFunction(*con.context, &abi_to_part_fun_info);
@@ -425,6 +419,12 @@ namespace duckdb {
                                ToAddress));
         abi_to_address_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
         catalog.CreateFunction(*con.context, &abi_to_address_fun_info);
+
+        CreateScalarFunctionInfo abi_blob_to_address_fun_info(
+                ScalarFunction("blob_to_address", {LogicalType::INTEGER, LogicalType::BLOB}, LogicalType::VARCHAR,
+                               BlobToAddress));
+        abi_blob_to_address_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
+        catalog.CreateFunction(*con.context, &abi_blob_to_address_fun_info);
 
         CreateScalarFunctionInfo abi_to_string_fun_info(
                 ScalarFunction("to_string", {LogicalType::INTEGER, LogicalType::VARCHAR}, LogicalType::VARCHAR,
