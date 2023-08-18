@@ -30,8 +30,14 @@ D select to_uint256(2, '0xffffffffffffffffffffffffffffffffffffffffffffffffffffff
 │ [18446744073709551615, 18446744073709551615, 18446744073709551615, 18446744073709551615] │
 └──────────────────────────────────────────────────────────────────────────────────────────┘
 
+D  select blob_to_uint256(0, '\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff'::blob);
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ blob_to_uint256(0, '\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x…  │
+│                                   uint64[]                                   │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ [18446744073709551615, 18446744073709551615, 18446744073709551615, 1844674…  │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
-
 ## Running the tests
 Different tests can be created for DuckDB extensions. The primary way of testing DuckDB extensions should be the SQL tests in `./test/sql`. These SQL tests can be run using:
 ```sh

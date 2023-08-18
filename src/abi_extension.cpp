@@ -10,36 +10,9 @@
 
 namespace duckdb {
 
-    inline std::string Substr(uint16_t pos, string_t data, uint8_t size) {
-        auto s = data.GetString();
-        auto p = pos + 64 - size;
-        auto r = s.substr(p, size);
-        return r;
-    }
-
-    inline void ToPart(DataChunk &args, ExpressionState &state, Vector &result) {
-        auto &pos_vector = args.data[0];
-        auto &data_vector = args.data[1];
-        auto &size_vector = args.data[2];
-        TernaryExecutor::Execute<uint16_t, string_t, uint8_t, string_t>(
-                pos_vector, data_vector, size_vector, result, args.size(),
-                [&](uint16_t pos, string_t data, uint8_t size) {
-                    auto s = Substr(pos, data, size);
-                    return StringVector::AddString(result, s);
-                });
-    }
-
-    inline void ToAddress(DataChunk &args, ExpressionState &state, Vector &result) {
-        auto &pos_vector = args.data[0];
-        auto &data_vector = args.data[1];
-        BinaryExecutor::Execute<uint16_t, string_t, string_t>(
-                pos_vector, data_vector, result, args.size(),
-                [&](uint16_t pos, string_t data) {
-                    auto s = Substr(pos, data, 20);
-                    auto r = "0x" + s;
-                    return StringVector::AddString(result, r);
-                });
-    }
+    /*
+    * Functions take input is blob
+    */
 
     constexpr char hexmap[] = {'0', '1', '2', '3', '4', '5', '6', '7',
                                '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
@@ -75,31 +48,8 @@ namespace duckdb {
                 });
     }
 
-    inline void ToString(DataChunk &args, ExpressionState &state, Vector &result) {
-        auto &pos_vector = args.data[0];
-        auto &data_vector = args.data[1];
-        BinaryExecutor::Execute<uint16_t, string_t, string_t>(
-                pos_vector, data_vector, result, args.size(),
-                [&](uint16_t pos, string_t data) {
-                    auto s = Substr(pos, data, 20);
-                    return StringVector::AddString(result, s);
-                });
-    }
-
     template<class U>
-    inline void ToUint(DataChunk &args, Vector &result, uint8_t size) {
-        BinaryExecutor::Execute<uint16_t, string_t, U>(
-                args.data[0], args.data[1], result, args.size(),
-                [&](uint16_t pos, string_t data) {
-                    auto s = data.GetString().substr(pos, size);
-                    U val;
-                    val = std::stoull(s, nullptr, 16);
-                    return val;
-                });
-    }
-
-    template<class U>
-    inline U BlobToUint(uint16_t pos, const char *s) {
+    inline U BlobToInt(uint16_t pos, const char *s) {
         U val;
         auto size = sizeof(U);
         std::vector<unsigned char> reversed(size);
@@ -111,32 +61,55 @@ namespace duckdb {
     }
 
     template<class U>
-    inline void BlobToUint(DataChunk &args, Vector &result) {
-        BinaryExecutor::Execute<uint16_t, string_t, U>(
-                args.data[0], args.data[1], result, args.size(),
+    inline U PaddedBlobToInt(uint16_t pos, const char *s) {
+        return BlobToInt<U>(pos + 32 - sizeof(U), s);
+    }
+
+    inline void BlobToString(DataChunk &args, ExpressionState &state, Vector &result) {
+        auto &pos_vector = args.data[0];
+        auto &data_vector = args.data[1];
+        BinaryExecutor::Execute<uint16_t, string_t, string_t>(
+                pos_vector, data_vector, result, args.size(),
                 [&](uint16_t pos, string_t data) {
-                    return BlobToUint<U>(pos, data.GetDataUnsafe());
+                    auto s = data.GetDataUnsafe();
+
+                    uint16_t location = PaddedBlobToInt<uint16_t>(pos, s);
+                    uint16_t size = PaddedBlobToInt<uint16_t>(location, s);
+
+                    std::vector<unsigned char> dest(size);
+                    auto first = s + location + 32;
+                    auto last = first + size;
+                    std::copy(first, last, std::begin(dest));
+
+                    std::string ret(dest.begin(), dest.end());
+
+                    return StringVector::AddString(result, ret);
                 });
     }
 
-    inline void ToUint8(DataChunk &args, ExpressionState &state, Vector &result) {
-        ToUint<uint64_t>(args, result, 2);
+    template<class U>
+    inline void BlobToInt(DataChunk &args, Vector &result) {
+        BinaryExecutor::Execute<uint16_t, string_t, U>(
+                args.data[0], args.data[1], result, args.size(),
+                [&](uint16_t pos, string_t data) {
+                    return PaddedBlobToInt<U>(pos, data.GetDataUnsafe());
+                });
     }
 
     inline void BlobToUint8(DataChunk &args, ExpressionState &state, Vector &result) {
-        BlobToUint<uint8_t>(args, result);
+        BlobToInt<uint8_t>(args, result);
     }
 
     inline void BlobToUint16(DataChunk &args, ExpressionState &state, Vector &result) {
-        BlobToUint<uint16_t>(args, result);
+        BlobToInt<uint16_t>(args, result);
     }
 
     inline void BlobToUint32(DataChunk &args, ExpressionState &state, Vector &result) {
-        BlobToUint<uint32_t>(args, result);
+        BlobToInt<uint32_t>(args, result);
     }
 
     inline void BlobToUint64(DataChunk &args, ExpressionState &state, Vector &result) {
-        BlobToUint<uint64_t>(args, result);
+        BlobToInt<uint64_t>(args, result);
     }
 
     inline void BlobToUint128(DataChunk &args, ExpressionState &state, Vector &result) {
@@ -154,8 +127,8 @@ namespace duckdb {
 
             auto s = data.data();
 
-            auto val0 = BlobToUint<uint64_t>(pos, s);
-            auto val1 = BlobToUint<uint64_t>(pos + size, s);
+            auto val0 = BlobToInt<uint64_t>(pos, s);
+            auto val1 = BlobToInt<uint64_t>(pos + size, s);
 
             ListVector::PushBack(result, Value::UBIGINT(val0));
             ListVector::PushBack(result, Value::UBIGINT(val1));
@@ -179,10 +152,10 @@ namespace duckdb {
 
             auto s = data.data();
 
-            auto val0 = BlobToUint<uint64_t>(pos, s);
-            auto val1 = BlobToUint<uint64_t>(pos + size, s);
-            auto val2 = BlobToUint<uint64_t>(pos + size * 2, s);
-            auto val3 = BlobToUint<uint64_t>(pos + size * 3, s);
+            auto val0 = BlobToInt<uint64_t>(pos, s);
+            auto val1 = BlobToInt<uint64_t>(pos + size, s);
+            auto val2 = BlobToInt<uint64_t>(pos + size * 2, s);
+            auto val3 = BlobToInt<uint64_t>(pos + size * 3, s);
 
             ListVector::PushBack(result, Value::UBIGINT(val0));
             ListVector::PushBack(result, Value::UBIGINT(val1));
@@ -191,6 +164,84 @@ namespace duckdb {
         }
 
         result.Verify(args.size());
+    }
+
+    inline void BlobToInt8(DataChunk &args, ExpressionState &state, Vector &result) {
+        BlobToInt<int8_t>(args, result);
+    }
+
+    inline void BlobToInt16(DataChunk &args, ExpressionState &state, Vector &result) {
+        BlobToInt<int16_t>(args, result);
+    }
+
+    inline void BlobToInt32(DataChunk &args, ExpressionState &state, Vector &result) {
+        BlobToInt<int32_t>(args, result);
+    }
+
+    inline void BlobToInt64(DataChunk &args, ExpressionState &state, Vector &result) {
+        BlobToInt<int64_t>(args, result);
+    }
+
+    /*
+     * Functions take input is hex
+     */
+
+    inline std::string Substr(uint16_t pos, string_t data, uint8_t size) {
+        auto s = data.GetString();
+        auto p = pos + 64 - size;
+        auto r = s.substr(p, size);
+        return r;
+    }
+
+    inline void ToPart(DataChunk &args, ExpressionState &state, Vector &result) {
+        auto &pos_vector = args.data[0];
+        auto &data_vector = args.data[1];
+        auto &size_vector = args.data[2];
+        TernaryExecutor::Execute<uint16_t, string_t, uint8_t, string_t>(
+                pos_vector, data_vector, size_vector, result, args.size(),
+                [&](uint16_t pos, string_t data, uint8_t size) {
+                    auto s = Substr(pos, data, size);
+                    return StringVector::AddString(result, s);
+                });
+    }
+
+    inline void ToAddress(DataChunk &args, ExpressionState &state, Vector &result) {
+        auto &pos_vector = args.data[0];
+        auto &data_vector = args.data[1];
+        BinaryExecutor::Execute<uint16_t, string_t, string_t>(
+                pos_vector, data_vector, result, args.size(),
+                [&](uint16_t pos, string_t data) {
+                    auto s = Substr(pos, data, 20);
+                    auto r = "0x" + s;
+                    return StringVector::AddString(result, r);
+                });
+    }
+
+    inline void ToString(DataChunk &args, ExpressionState &state, Vector &result) {
+        auto &pos_vector = args.data[0];
+        auto &data_vector = args.data[1];
+        BinaryExecutor::Execute<uint16_t, string_t, string_t>(
+                pos_vector, data_vector, result, args.size(),
+                [&](uint16_t pos, string_t data) {
+                    auto s = Substr(pos, data, 20);
+                    return StringVector::AddString(result, s);
+                });
+    }
+
+    template<class U>
+    inline void ToUint(DataChunk &args, Vector &result, uint8_t size) {
+        BinaryExecutor::Execute<uint16_t, string_t, U>(
+                args.data[0], args.data[1], result, args.size(),
+                [&](uint16_t pos, string_t data) {
+                    auto s = data.GetString().substr(pos, size);
+                    U val;
+                    val = std::stoull(s, nullptr, 16);
+                    return val;
+                });
+    }
+
+    inline void ToUint8(DataChunk &args, ExpressionState &state, Vector &result) {
+        ToUint<uint64_t>(args, result, 2);
     }
 
     inline void ToUint16(DataChunk &args, ExpressionState &state, Vector &result) {
@@ -345,6 +396,30 @@ namespace duckdb {
         abi_blob_to_uint256_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
         catalog.CreateFunction(*con.context, &abi_blob_to_uint256_fun_info);
 
+        CreateScalarFunctionInfo abi_blob_to_int8_fun_info(
+                ScalarFunction("blob_to_int8", {LogicalType::INTEGER, LogicalType::BLOB}, LogicalType::TINYINT,
+                               BlobToInt8));
+        abi_blob_to_int8_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
+        catalog.CreateFunction(*con.context, &abi_blob_to_int8_fun_info);
+
+        CreateScalarFunctionInfo abi_blob_to_int16_fun_info(
+                ScalarFunction("blob_to_int16", {LogicalType::INTEGER, LogicalType::BLOB}, LogicalType::SMALLINT,
+                               BlobToInt16));
+        abi_blob_to_int16_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
+        catalog.CreateFunction(*con.context, &abi_blob_to_int16_fun_info);
+
+        CreateScalarFunctionInfo abi_blob_to_int32_fun_info(
+                ScalarFunction("blob_to_int32", {LogicalType::INTEGER, LogicalType::BLOB}, LogicalType::INTEGER,
+                               BlobToInt32));
+        abi_blob_to_int32_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
+        catalog.CreateFunction(*con.context, &abi_blob_to_int32_fun_info);
+
+        CreateScalarFunctionInfo abi_blob_to_int64_fun_info(
+                ScalarFunction("blob_to_int64", {LogicalType::INTEGER, LogicalType::BLOB}, LogicalType::BIGINT,
+                               BlobToInt64));
+        abi_blob_to_int64_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
+        catalog.CreateFunction(*con.context, &abi_blob_to_int64_fun_info);
+
         CreateScalarFunctionInfo abi_to_uint8_fun_info(
                 ScalarFunction("to_uint8", {LogicalType::INTEGER, LogicalType::VARCHAR}, LogicalType::UTINYINT,
                                ToUint8));
@@ -431,6 +506,12 @@ namespace duckdb {
                                ToString));
         abi_to_string_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
         catalog.CreateFunction(*con.context, &abi_to_string_fun_info);
+
+        CreateScalarFunctionInfo abi_blob_to_string_fun_info(
+                ScalarFunction("blob_to_string", {LogicalType::INTEGER, LogicalType::BLOB}, LogicalType::VARCHAR,
+                               BlobToString));
+        abi_blob_to_string_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
+        catalog.CreateFunction(*con.context, &abi_blob_to_string_fun_info);
 
         con.Commit();
     }
