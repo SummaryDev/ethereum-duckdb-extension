@@ -17,11 +17,14 @@ namespace duckdb {
     constexpr char hexmap[] = {'0', '1', '2', '3', '4', '5', '6', '7',
                                '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
-    inline std::string BlobToHex(uint16_t pos, unsigned char *data, uint16_t len) {
+    inline std::string BlobToHex(uint16_t pos, const unsigned char *data, uint16_t len) {
         std::string s(len * 2, '0');
-        for (int i = pos; i < len; ++i) {
-            s[2 * i] = hexmap[(data[i] & 0xF0) >> 4];
-            s[2 * i + 1] = hexmap[data[i] & 0x0F];
+        for (int i = 0; i < len; ++i) {
+            auto d = data[pos + i];
+            auto h1 = hexmap[(d & 0xF0) >> 4];
+            auto h2 = hexmap[d & 0x0F];
+            s[2 * i] = h1;
+            s[2 * i + 1] = h2;
         }
         return s;
     }
@@ -42,14 +45,14 @@ namespace duckdb {
         BinaryExecutor::Execute<uint16_t, string_t, string_t>(
                 pos_vector, data_vector, result, args.size(),
                 [&](uint16_t pos, string_t data) {
-                    auto s = data.GetDataUnsafe();
-                    auto h = "0x" + BlobToHex(pos, (unsigned char *) s, 20);
+                    auto s = (const unsigned char*) data.GetDataUnsafe();
+                    auto h = "0x" + BlobToHex(pos + 32 - 20, s, 20);
                     return StringVector::AddString(result, h);
                 });
     }
 
     template<class U>
-    inline U BlobToInt(uint16_t pos, const char *s) {
+    inline U BlobToInt(uint16_t pos, const unsigned char *s) {
         U val;
         auto size = sizeof(U);
         std::vector<unsigned char> reversed(size);
@@ -61,7 +64,7 @@ namespace duckdb {
     }
 
     template<class U>
-    inline U PaddedBlobToInt(uint16_t pos, const char *s) {
+    inline U PaddedBlobToInt(uint16_t pos, const unsigned char *s) {
         return BlobToInt<U>(pos + 32 - sizeof(U), s);
     }
 
@@ -71,7 +74,7 @@ namespace duckdb {
         BinaryExecutor::Execute<uint16_t, string_t, string_t>(
                 pos_vector, data_vector, result, args.size(),
                 [&](uint16_t pos, string_t data) {
-                    auto s = data.GetDataUnsafe();
+                    auto s = (const unsigned char*) data.GetDataUnsafe();
 
                     uint16_t location = PaddedBlobToInt<uint16_t>(pos, s);
                     uint16_t size = PaddedBlobToInt<uint16_t>(location, s);
@@ -87,12 +90,29 @@ namespace duckdb {
                 });
     }
 
+    inline void BlobToBytes(DataChunk &args, ExpressionState &state, Vector &result) {
+        auto &pos_vector = args.data[0];
+        auto &data_vector = args.data[1];
+        BinaryExecutor::Execute<uint16_t, string_t, string_t>(
+                pos_vector, data_vector, result, args.size(),
+                [&](uint16_t pos, string_t data) {
+                    auto s = (const unsigned char*) data.GetDataUnsafe();
+
+                    uint16_t location = PaddedBlobToInt<uint16_t>(pos, s);
+                    uint16_t size = PaddedBlobToInt<uint16_t>(location, s);
+
+                    std::string ret = "0x" + BlobToHex(location + 32, s, size);
+
+                    return StringVector::AddString(result, ret);
+                });
+    }
+
     template<class U>
     inline void BlobToInt(DataChunk &args, Vector &result) {
         BinaryExecutor::Execute<uint16_t, string_t, U>(
                 args.data[0], args.data[1], result, args.size(),
                 [&](uint16_t pos, string_t data) {
-                    return PaddedBlobToInt<U>(pos, data.GetDataUnsafe());
+                    return PaddedBlobToInt<U>(pos, (const unsigned char*) data.GetDataUnsafe());
                 });
     }
 
@@ -125,7 +145,7 @@ namespace duckdb {
             auto data = args.GetValue(1, i).GetValueUnsafe<string>();
             const uint8_t size = 8;
 
-            auto s = data.data();
+            auto s = (const unsigned char*) data.data();
 
             auto val0 = BlobToInt<uint64_t>(pos, s);
             auto val1 = BlobToInt<uint64_t>(pos + size, s);
@@ -150,7 +170,7 @@ namespace duckdb {
             auto data = args.GetValue(1, i).GetValueUnsafe<string>();
             const uint8_t size = 8;
 
-            auto s = data.data();
+            auto s = (const unsigned char*) data.data();
 
             auto val0 = BlobToInt<uint64_t>(pos, s);
             auto val1 = BlobToInt<uint64_t>(pos + size, s);
@@ -512,6 +532,12 @@ namespace duckdb {
                                BlobToString));
         abi_blob_to_string_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
         catalog.CreateFunction(*con.context, &abi_blob_to_string_fun_info);
+
+        CreateScalarFunctionInfo abi_blob_to_bytes_fun_info(
+                ScalarFunction("blob_to_bytes", {LogicalType::INTEGER, LogicalType::BLOB}, LogicalType::VARCHAR,
+                               BlobToBytes));
+        abi_blob_to_bytes_fun_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
+        catalog.CreateFunction(*con.context, &abi_blob_to_bytes_fun_info);
 
         con.Commit();
     }
